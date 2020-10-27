@@ -28,7 +28,7 @@ export const addressPath = (index, branch, account, coinType) => {
 };
 
 // walletTxToBtcjsTx is a aux function to convert a tx decoded by the decred wallet (ie,
-// returned from wallet.decoreRawTransaction call) into a bitcoinjs-compatible
+// returned from wallet.decodeRawTransaction call) into a bitcoinjs-compatible
 // transaction (to be used in trezor).
 export const walletTxToBtcjsTx = async (
   walletService,
@@ -128,7 +128,9 @@ export const walletTxToRefTx = async (walletService, tx) => {
   const outputs = tx.outputs.map(async (outp) => {
     const addr = outp.decodedScript.address;
     const addrValidResp = await wallet.validateAddress(walletService, addr);
-    if (!addrValidResp.getIsValid())
+    // Scripts with zero value can be ignored as they are not a concern when
+    // spending from an outpoint.
+    if (outp.value != 0 && !addrValidResp.getIsValid())
       throw new Error("Not a valid address: " + addr);
     return {
       amount: outp.value,

@@ -1,6 +1,7 @@
 import * as wallet from "wallet";
 import * as selectors from "selectors";
-import { hexToBytes, str2utf8hex } from "helpers";
+import { networks, ECPair, Transaction } from "utxo-lib";
+import { rawToHex, hexToBytes, str2utf8hex } from "helpers";
 import {
   walletTxToBtcjsTx,
   walletTxToRefTx,
@@ -418,7 +419,7 @@ const checkTrezorIsDcrwallet = () => async (dispatch, getState) => {
 
 export const signTransactionAttemptTrezor = (
   rawUnsigTx,
-  constructTxResponse
+  changeIndex
 ) => async (dispatch, getState) => {
   dispatch({ type: SIGNTX_ATTEMPT });
 
@@ -428,11 +429,8 @@ export const signTransactionAttemptTrezor = (
   } = getState();
   const chainParams = selectors.chainParams(getState());
 
-  debug && console.log("construct tx response", constructTxResponse);
-
+  debug && console.log("construct tx response", rawUnsigTx);
   try {
-    const changeIndex = constructTxResponse.getChangeIndex();
-
     const decodedUnsigTxResp = wallet.decodeRawTransaction(
       Buffer.from(rawUnsigTx),
       chainParams
@@ -453,7 +451,29 @@ export const signTransactionAttemptTrezor = (
     const refTxs = await Promise.all(
       inputTxs.map(inpTx => walletTxToRefTx(walletService, inpTx))
     );
-
+    // Determine if this is paying from a stakegen or revocation, which are
+    // special cases.
+    for (let i = 0; i < inputs.length; i++) {
+      const input = inputs[i];
+      for (let j = 0; j < refTxs.length; j++) {
+        const ref = refTxs[j];
+        if (ref.hash && ref.hash == input.prev_hash) {
+          let s = ref.bin_outputs[input.prev_index].script_pubkey;
+          if (s.length > 1) {
+            s = s.slice(0, 2);
+            switch (s) {
+              case "bc":
+                input.script_type = "SPENDSSRTX";
+                break;
+              case "bb":
+                input.script_type = "SPENDSSGEN";
+                break;
+            }
+          }
+          break;
+        }
+      }
+    }
     const payload = await deviceRun(
       dispatch,
       getState,
@@ -525,6 +545,7 @@ export const signMessageAttemptTrezor = (address, message) => async (
       }
     );
     dispatch({ getSignMessageSignature: payload.signature, type: SIGNMESSAGE_SUCCESS });
+    return payload.signature;
   } catch (error) {
     dispatch({ error, type: SIGNMESSAGE_FAILED });
   }
@@ -891,3 +912,299 @@ export const getWalletCreationMasterPubKey = () => async (
     throw error;
   };
 };
+
+export const TRZ_PURCHASETICKET_ATTEMPT = "TRZ_PURCHASETICKET_ATTEMPT";
+export const TRZ_PURCHASETICKET_FAILED = "TRZ_PURCHASETICKET_FAILED";
+export const TRZ_PURCHASETICKET_SUCCESS = "TRZ_PURCHASETICKET_SUCCESS";
+
+export const purchaseTicketsV3 = (
+    accountNum,
+    numTickets,
+    vsp
+  ) => async (dispatch, getState) => {
+  dispatch({ type: TRZ_PURCHASETICKET_ATTEMPT });
+
+  if (noDevice(getState)) {
+    dispatch({
+      error: "Device not connected",
+      type: TRZ_PURCHASETICKET_FAILED
+    });
+    return;
+  }
+
+  const {
+    grpc: { walletService }
+  } = getState();
+  const chainParams = selectors.chainParams(getState());
+
+  try {
+    // TODO: Enable on mainnet. The following todo on crypto magic must be
+    // implemented first. Revocation logic and a re-fee payment method must be
+    // added.
+    if (chainParams.trezorCoinName != "Decred Testnet") throw "can only be used on testnet";
+    // TODO: Fill this with deterministic crypto magic.
+    const privateKeySeed = Buffer.alloc(32);
+    privateKeySeed[31] = 1;
+    const net = conToTrezCoinParams(chainParams.trezorCoinName);
+    const ecp = ECPair.fromPrivateKeyBuffer(privateKeySeed, net);
+    const votingKey = ecp.toWIF();
+    const votingAddr = ecp.getAddress();
+    // TODO: Add cspp purchasing.
+    const res = await wallet.purchaseTicketsV3(walletService, "", accountNum, numTickets, false, vsp, {});
+    const splitTx = res.getSplitTx();
+    const decodedInp = await wallet.decodeTransactionLocal(
+      splitTx,
+      chainParams
+    );
+    let changeIndex = 0;
+    for (const out of decodedInp.outputs) {
+      const addr = out.decodedScript.address;
+      const addrValidResp = await wallet.validateAddress(walletService, addr);
+      if (addrValidResp.getIsInternal()) {
+        changeIndex = addrValidResp.getIndex();
+        break;
+      }
+    };
+    await signTransactionAttemptTrezor(splitTx, changeIndex)(dispatch, getState);
+    const refTxs = await walletTxToRefTx(walletService, decodedInp);
+
+    for (const ticket of res.getTicketsList()) {
+      const decodedTicket = await wallet.decodeTransactionLocal(
+        ticket,
+        chainParams
+      );
+      refTxs.hash = decodedTicket.inputs[0].prevTxId;
+      const ticketOutN = decodedTicket.inputs[0].outputIndex;
+      const inAddr = decodedInp.outputs[ticketOutN].decodedScript.address;
+      let addrValidResp = await wallet.validateAddress(walletService, inAddr);
+      const inAddr_n = addressPath(addrValidResp.getIndex(), 1, WALLET_ACCOUNT, chainParams.HDCoinType);
+      const commitAddr = decodedTicket.outputs[1].decodedScript.address;
+      addrValidResp = await wallet.validateAddress(walletService, commitAddr);
+      const commitAddr_n = addressPath(addrValidResp.getIndex(), 1, WALLET_ACCOUNT, chainParams.HDCoinType);
+      const ticketInput = {
+        address_n: inAddr_n,
+        prev_hash: decodedTicket.inputs[0].prevTxId,
+        prev_index: ticketOutN,
+        amount: decodedTicket.inputs[0].valueIn.toString()
+      };
+      const sstxsubmission = {
+          script_type: "SSTXSUBMISSIONPKH",
+          address: votingAddr,
+          amount: decodedTicket.outputs[0].value.toString()
+      };
+      // Trezor doesn't want opcodes included in op_return_data.
+      const ticketOPreturn = decodedTicket.outputs[1].script.slice(2).toString("hex");
+      const ticketsstxcommitment = {
+          script_type: "SSTXCOMMITMENTOWNED",
+          op_return_data: ticketOPreturn,
+          address_n: commitAddr_n,
+          amount: "0"
+      };
+      const ticketsstxchange = {
+          script_type: "SSTXCHANGE",
+          address: decodedTicket.outputs[2].decodedScript.address,
+          amount: "0"
+      };
+      const inputs = [ticketInput];
+      const outputs = [sstxsubmission, ticketsstxcommitment, ticketsstxchange];
+      const payload = await deviceRun(
+        dispatch,
+        getState,
+        async () => {
+          const res = await session.signTransaction({
+            coin: chainParams.trezorCoinName,
+            inputs: inputs,
+            outputs: outputs,
+            refTxs: [refTxs]
+          });
+          return res.payload;
+        }
+      );
+
+      const signedRaw = payload.serializedTx;
+      dispatch(publishTransactionAttempt(hexToBytes(signedRaw)));
+      // Pay fee.
+      console.log("waiting 5 seconds for the ticket to propogate throughout the network");
+      await new Promise(r => setTimeout(r, 5000));
+      const host = "https://" + vsp.host;
+      await payVSPFee(host, signedRaw, votingKey, accountNum.value, true, dispatch, getState);
+    }
+    dispatch({ type: TRZ_PURCHASETICKET_SUCCESS });
+  } catch (error) {
+    dispatch({ error, type: TRZ_PURCHASETICKET_FAILED });
+  }
+};
+
+function conToTrezCoinParams(coin) {
+  switch (coin) {
+    case "Decred":
+      return networks.decred;
+    case "Decred Testnet":
+      return networks.decredTest;
+    default:
+      throw "unsupported coin " + coin;
+  }
+}
+
+// payVSPFee attempts to contact a vst about a ticket and pay the fee if
+// necessary. It will search transacitons for a suitable fee transaction before
+// attempting to pay if newTicket is false.
+async function payVSPFee(host, txHex, votingKey, accountNum, newTicket, dispatch, getState) {
+  const {
+    grpc: { walletService  }
+  } = getState();
+  // Gather information about the ticket.
+  const chainParams = selectors.chainParams(getState());
+  const net = conToTrezCoinParams(chainParams.trezorCoinName);
+  const decodedTicket = await wallet.decodeTransactionLocal(
+    hexToBytes(txHex),
+    chainParams
+  );
+  const commitmentAddr = decodedTicket.outputs[1].decodedScript.address;
+  const txHash = Transaction.fromHex(txHex, net).getId();
+
+  // Request fee info from the vspd.
+  let req = {
+    timestamp: + new Date(),
+    tickethash: txHash,
+    tickethex: txHex
+  };
+  let jsonStr = JSON.stringify(req);
+  let sig = await signMessageAttemptTrezor(commitmentAddr, jsonStr)(dispatch, getState);
+  wallet.allowVSPHost(host);
+  // This will throw becuase of http.status 400 if already paid.
+  // TODO: Investigate whether other fee payment errors will cause this to
+  // throw. Other fee payment errors should continue, and we should only stop
+  // here if already paid or the ticket is not found by the vps.
+  let res = null;
+  try {
+    res = await wallet.getVSPFeeAddress({ host, sig, req });
+  } catch (error) {
+    if (error.response && error.response.data && error.response.data.message) {
+      // NOTE: already paid is error.response.data.code == 3
+      throw error.response.data.message;
+    }
+    throw error;
+  }
+  const payAddr = res.data.feeaddress;
+  const fee = res.data.feeamount;
+
+  // Find the fee transaction or make a new one.
+  let feeTx = null;
+  // Do not search for the fee tx of a new ticket.
+  if (!newTicket) {
+    feeTx = await findFeeTx(payAddr, fee, dispatch, getState);
+  }
+  if (!feeTx) {
+    const outputs = [{ destination: payAddr, amount: fee }];
+    const txResp = await wallet.constructTransaction(
+      walletService,
+      accountNum,
+      0,
+      outputs
+    );
+    const unsignedTx = txResp.getUnsignedTransaction();
+    const decodedInp = await wallet.decodeTransactionLocal(
+      unsignedTx,
+      chainParams
+    );
+    let changeIndex = 0;
+    for (const out of decodedInp.outputs) {
+      const addr = out.decodedScript.address;
+      const addrValidResp = await wallet.validateAddress(walletService, addr);
+      if (addrValidResp.getIsInternal()) {
+        changeIndex = addrValidResp.getIndex();
+        break;
+      }
+    };
+    await signTransactionAttemptTrezor(unsignedTx, changeIndex)(dispatch, getState);
+    for (let i = 0; i < 5; i++) {
+      console.log("waiting 5 seconds for the fee tx to propogate throughout the network");
+      await new Promise(r => setTimeout(r, 5000));
+      feeTx = await findFeeTx(payAddr, fee, dispatch, getState);
+      if (feeTx) break;
+    }
+    if (!feeTx) throw "unable to find fee tx " + rawToHex(unsignedTx);
+  }
+
+  // Send ticket fee data and voting chioces back to the vsp.
+  const {
+    grpc: { votingService  }
+  } = getState();
+  const voteChoicesRes = await wallet.getVoteChoices(votingService);
+  const voteChoices = {};
+  for (const choice of voteChoicesRes.getChoicesList()) {
+    voteChoices[choice.getAgendaId()] = choice.getChoiceId();
+  }
+  req = {
+    timestamp: + new Date(),
+    tickethash: txHash,
+    feetx: feeTx,
+    votingkey: votingKey,
+    votechoices: voteChoices
+  };
+  jsonStr = JSON.stringify(req);
+  sig = await signMessageAttemptTrezor(commitmentAddr, jsonStr)(dispatch, getState);
+  wallet.allowVSPHost(host);
+  await wallet.payVSPFee({ host, sig, req });
+}
+
+// findFeeTx searches unmined and recent transactions for a tx that pays to
+// FeeAddr of the amount feeAmt. It stops searching below a resonable depth for
+// a ticket.
+async function findFeeTx(feeAddr, feeAmt, dispatch, getState) {
+  const {
+    grpc: { walletService  }
+  } = getState();
+  const chainParams = selectors.chainParams(getState());
+  // findFee looks for a transaction the paid out exactl feeAmt and has an
+  // output address that matches feeAddr.
+  const findFee = async (res) => {
+    for (const credit of res) {
+      if (credit.txType != "sent" && credit.txType != "regular") continue;
+      const sentAmt = Math.abs(credit.amount + credit.fee);
+      if (sentAmt == feeAmt) {
+        const tx = await wallet.decodeTransactionLocal(
+          hexToBytes(credit.rawTx),
+          chainParams
+        );
+        if (tx.outputs.find(e => e.decodedScript && e.decodedScript.address == feeAddr)) return credit.rawTx;
+       }
+    }
+    return null;
+  };
+  // First search mempool.
+  const { unmined } = await wallet.getTransactions(
+    walletService,
+    -1,
+    -1,
+     0
+  );
+  const feeTx = await findFee(unmined);
+  if (feeTx) return feeTx;
+  // TODO: Take these constants from the chainparams.
+  const ticketMaturity = 256;
+  const ticketExpiry = 40960;
+  const {
+    currentBlockHeight
+  } = getState().grpc;
+  let start = currentBlockHeight - 100;
+  let end = currentBlockHeight;
+  const maxAge = currentBlockHeight - (ticketMaturity + ticketExpiry);
+  const blockIncrement = 100;
+  // Search mined txs in reverse order up until a ticket must have expired on
+  // mainnet.
+  while (start > maxAge) {
+    const { mined } = await wallet.getTransactions(
+      walletService,
+      start,
+      end,
+      0
+    );
+    start -= blockIncrement;
+    end -= blockIncrement;
+    const feeTx = await findFee(mined);
+    if (feeTx) return feeTx;
+  }
+  return null;
+}

@@ -49,6 +49,14 @@ export const getVSPInfo = promisifyReqLogNoData(
   "getVSPInfo",
   api.getVSPInfo
 );
+export const getVSPFeeAddress = promisifyReqLogNoData(
+  "getFeeAddress",
+  api.getFeeAddress
+);
+export const payVSPFee = promisifyReqLogNoData(
+  "getFeeAddress",
+  api.payFee
+);
 export const getVSPTicketStatus = promisifyReqLogNoData(
   "getVSPTicketStatusInfo",
   api.getTicketStatus

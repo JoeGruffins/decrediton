@@ -3,6 +3,7 @@ import { useCallback } from "react";
 import { useSettings } from "hooks";
 import { EXTERNALREQUEST_STAKEPOOL_LISTING } from "main_dev/externalRequests";
 
+import { purchaseTicketsV3 as trezorPurchseTicketsV3 } from "actions/TrezorActions.js";
 import * as vspa from "actions/VSPActions";
 import * as ca from "actions/ControlActions.js";
 import { listUnspentOutputs } from "actions/TransactionActions";
@@ -22,6 +23,7 @@ export const usePurchaseTab = () => {
   const isLegacy = useSelector(sel.getIsLegacy);
   const isLoading = useSelector(sel.purchaseTicketsRequestAttempt);
   const notMixedAccounts = useSelector(sel.getNotMixedAccounts);
+  const isTrezor = useSelector(sel.isTrezor);
 
   const buyerVSP = useSelector(sel.buyerVSP);
   const buyerBalanceToMantain = useSelector(sel.buyerBalanceToMantain);
@@ -42,12 +44,17 @@ export const usePurchaseTab = () => {
     [dispatch]
   );
   const onPurchaseTicketV3 = useCallback(
-    (passphrase, account, numTickets, vsp) =>
+    (passphrase, account, numTickets, vsp) => {
+    if (isTrezor) {
+      dispatch(
+        trezorPurchseTicketsV3(account, numTickets, vsp)
+      );
+    } else {
       dispatch(
         ca.newPurchaseTicketsAttempt(passphrase, account, numTickets, vsp)
-      ),
-    [dispatch]
-  );
+      );
+    }
+  }, [dispatch, isTrezor]);
   const onEnableTicketAutoBuyer = useCallback(
     (passphrase, account, balanceToMaintain, vsp) =>
       dispatch(

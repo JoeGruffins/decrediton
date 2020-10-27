@@ -315,6 +315,7 @@
     "string-argv": "0.1.1",
     "stylelint": "^13.0.0",
     "timezone-mock": "^1.0.12",
+    "utxo-lib": "https://github.com/JoeGruffins/trezor-utxo-lib#0e6287c2155f9ce5ec63341681a5c94a17832be6",
     "winston": "^2.3.1",
     "xstate": "^4.10.0"
   },

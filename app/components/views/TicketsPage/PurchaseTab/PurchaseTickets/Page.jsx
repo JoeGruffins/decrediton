@@ -151,7 +151,8 @@ export function PurchasePage({
             isLoading,
             rememberedVspHost,
             toggleRememberVspHostCheckBox,
-            onRevokeTickets
+            onRevokeTickets,
+            isWatchingOnly
           }}
         />
       )}

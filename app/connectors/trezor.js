@@ -33,7 +33,8 @@ const mapDispatchToProps = (dispatch) =>
       initDevice: trza.initDevice,
       backupDevice: trza.backupDevice,
       updateFirmware: trza.updateFirmware,
-      enableTrezor: trza.enableTrezor
+      enableTrezor: trza.enableTrezor,
+      purchaseTicketsV3: trza.purchaseTicketsV3
     },
     dispatch
   );
