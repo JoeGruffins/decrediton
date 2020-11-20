@@ -961,9 +961,9 @@ export const purchaseTicketsV3 = (
       const addr = out.decodedScript.address;
       const addrValidResp = await wallet.validateAddress(walletService, addr);
       if (addrValidResp.getIsInternal()) {
-        changeIndex = addrValidResp.getIndex();
         break;
       }
+      changeIndex++;
     };
     await signTransactionAttemptTrezor(splitTx, changeIndex)(dispatch, getState);
     const refTxs = await walletTxToRefTx(walletService, decodedInp);
@@ -1075,7 +1075,7 @@ async function payVSPFee(host, txHex, votingKey, accountNum, newTicket, dispatch
   // This will throw becuase of http.status 400 if already paid.
   // TODO: Investigate whether other fee payment errors will cause this to
   // throw. Other fee payment errors should continue, and we should only stop
-  // here if already paid or the ticket is not found by the vps.
+  // here if already paid or the ticket is not found by the vsp.
   let res = null;
   try {
     res = await wallet.getVSPFeeAddress({ host, sig, req });
@@ -1113,9 +1113,9 @@ async function payVSPFee(host, txHex, votingKey, accountNum, newTicket, dispatch
       const addr = out.decodedScript.address;
       const addrValidResp = await wallet.validateAddress(walletService, addr);
       if (addrValidResp.getIsInternal()) {
-        changeIndex = addrValidResp.getIndex();
         break;
       }
+      changeIndex++;
     };
     await signTransactionAttemptTrezor(unsignedTx, changeIndex)(dispatch, getState);
     for (let i = 0; i < 5; i++) {
