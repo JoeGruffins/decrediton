@@ -35,7 +35,7 @@ export const walletTxToBtcjsTx = async (
   chainParams,
   tx,
   inputTxs,
-  changeIndex
+  changeIndexes
 ) => {
   const inputs = tx.inputs.map(async (inp) => {
     const addr = inp.outpointAddress;
@@ -83,7 +83,7 @@ export const walletTxToBtcjsTx = async (
     if (!addrValidResp.getIsValid()) throw "Not a valid address: " + addr;
     let address_n = null;
 
-    if (i === changeIndex && addrValidResp.getIsMine()) {
+    if (changeIndexes.includes(i) && addrValidResp.getIsMine()) {
       const addrIndex = addrValidResp.getIndex();
       const addrBranch = addrValidResp.getIsInternal() ? 1 : 0;
       address_n = addressPath(

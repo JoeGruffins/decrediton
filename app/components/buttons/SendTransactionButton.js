@@ -30,7 +30,7 @@ class SendTransactionButton extends React.Component {
     if (disabled || !onAttemptSignTransactionTrezor) return;
     await onAttemptSignTransactionTrezor(
       unsignedTransaction,
-      constructTxResponse.getChangeIndex()
+      [constructTxResponse.getChangeIndex()]
     );
     onSubmit && onSubmit();
   }

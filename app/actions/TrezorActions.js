@@ -419,7 +419,7 @@ const checkTrezorIsDcrwallet = () => async (dispatch, getState) => {
 
 export const signTransactionAttemptTrezor = (
   rawUnsigTx,
-  changeIndex
+  changeIndexes
 ) => async (dispatch, getState) => {
   dispatch({ type: SIGNTX_ATTEMPT });
 
@@ -445,7 +445,7 @@ export const signTransactionAttemptTrezor = (
       chainParams,
       txCompletedInputs,
       inputTxs,
-      changeIndex
+      changeIndexes
     );
 
     const refTxs = await Promise.all(
@@ -956,16 +956,11 @@ export const purchaseTicketsV3 = (
       splitTx,
       chainParams
     );
-    let changeIndex = 0;
-    for (const out of decodedInp.outputs) {
-      const addr = out.decodedScript.address;
-      const addrValidResp = await wallet.validateAddress(walletService, addr);
-      if (addrValidResp.getIsInternal()) {
-        break;
-      }
-      changeIndex++;
+    const changeIndexes = [];
+    for (let i = 0; i < decodedInp.outputs.length; i++) {
+      changeIndexes.push(i);
     };
-    await signTransactionAttemptTrezor(splitTx, changeIndex)(dispatch, getState);
+    await signTransactionAttemptTrezor(splitTx, changeIndexes)(dispatch, getState);
     const refTxs = await walletTxToRefTx(walletService, decodedInp);
 
     for (const ticket of res.getTicketsList()) {
@@ -1117,7 +1112,7 @@ async function payVSPFee(host, txHex, votingKey, accountNum, newTicket, dispatch
       }
       changeIndex++;
     };
-    await signTransactionAttemptTrezor(unsignedTx, changeIndex)(dispatch, getState);
+    await signTransactionAttemptTrezor(unsignedTx, [changeIndex])(dispatch, getState);
     for (let i = 0; i < 5; i++) {
       console.log("waiting 5 seconds for the fee tx to propogate throughout the network");
       await new Promise(r => setTimeout(r, 5000));
