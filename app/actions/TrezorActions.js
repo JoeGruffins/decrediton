@@ -493,6 +493,7 @@ export const signTransactionAttemptTrezor = (
 
     dispatch({ type: SIGNTX_SUCCESS });
     dispatch(publishTransactionAttempt(hexToBytes(signedRaw)));
+    return true;
   } catch (error) {
     dispatch({ error, type: SIGNTX_FAILED });
   }
@@ -960,7 +961,8 @@ export const purchaseTicketsV3 = (
     for (let i = 0; i < decodedInp.outputs.length; i++) {
       changeIndexes.push(i);
     };
-    await signTransactionAttemptTrezor(splitTx, changeIndexes)(dispatch, getState);
+    const success = await signTransactionAttemptTrezor(splitTx, changeIndexes)(dispatch, getState);
+    if (!success) throw("failed to sign splittx");
     const refTxs = await walletTxToRefTx(walletService, decodedInp);
 
     for (const ticket of res.getTicketsList()) {
@@ -1066,6 +1068,7 @@ async function payVSPFee(host, txHex, votingKey, accountNum, newTicket, dispatch
   };
   let jsonStr = JSON.stringify(req);
   let sig = await signMessageAttemptTrezor(commitmentAddr, jsonStr)(dispatch, getState);
+  if (!sig) throw "unable to sign fee address message";
   wallet.allowVSPHost(host);
   // This will throw becuase of http.status 400 if already paid.
   // TODO: Investigate whether other fee payment errors will cause this to
@@ -1112,7 +1115,8 @@ async function payVSPFee(host, txHex, votingKey, accountNum, newTicket, dispatch
       }
       changeIndex++;
     };
-    await signTransactionAttemptTrezor(unsignedTx, [changeIndex])(dispatch, getState);
+    const success = await signTransactionAttemptTrezor(unsignedTx, [changeIndex])(dispatch, getState);
+    if (!success) throw "unable to sign fee tx";
     for (let i = 0; i < 5; i++) {
       console.log("waiting 5 seconds for the fee tx to propogate throughout the network");
       await new Promise(r => setTimeout(r, 5000));
@@ -1140,6 +1144,7 @@ async function payVSPFee(host, txHex, votingKey, accountNum, newTicket, dispatch
   };
   jsonStr = JSON.stringify(req);
   sig = await signMessageAttemptTrezor(commitmentAddr, jsonStr)(dispatch, getState);
+  if (!sig) throw "unable to sign fee tx message";
   wallet.allowVSPHost(host);
   await wallet.payVSPFee({ host, sig, req });
 }

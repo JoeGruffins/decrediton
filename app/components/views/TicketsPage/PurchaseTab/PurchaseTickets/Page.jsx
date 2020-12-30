@@ -109,6 +109,7 @@ export function PurchasePage({
   notMixedAccounts,
   isVSPListingEnabled,
   onEnableVSPListing,
+  isPurchasingTicketsTrezor,
   ...props
 }) {
   return (
@@ -152,6 +153,7 @@ export function PurchasePage({
             rememberedVspHost,
             toggleRememberVspHostCheckBox,
             onRevokeTickets,
+            isPurchasingTicketsTrezor,
             isWatchingOnly
           }}
         />

@@ -24,6 +24,7 @@ export const usePurchaseTab = () => {
   const isLoading = useSelector(sel.purchaseTicketsRequestAttempt);
   const notMixedAccounts = useSelector(sel.getNotMixedAccounts);
   const isTrezor = useSelector(sel.isTrezor);
+  const isPurchasingTicketsTrezor = useSelector(sel.isPurchasingTicketsTrezor);
 
   const buyerVSP = useSelector(sel.buyerVSP);
   const buyerBalanceToMantain = useSelector(sel.buyerBalanceToMantain);
@@ -128,6 +129,7 @@ export const usePurchaseTab = () => {
     notMixedAccounts,
     isVSPListingEnabled,
     onEnableVSPListing,
+    isPurchasingTicketsTrezor,
     onListUnspentOutputs
   };
 };

@@ -24,6 +24,7 @@ const Tickets = ({ toggleIsLegacy }) => {
     onRevokeTickets,
     notMixedAccounts,
     isVSPListingEnabled,
+    isPurchasingTicketsTrezor,
     onEnableVSPListing
   } = usePurchaseTab();
 
@@ -100,6 +101,7 @@ const Tickets = ({ toggleIsLegacy }) => {
         onRevokeTickets,
         notMixedAccounts,
         isVSPListingEnabled,
+	isPurchasingTicketsTrezor,
         onEnableVSPListing
       }}
     />

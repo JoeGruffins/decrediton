@@ -29,6 +29,7 @@ const PurchaseTicketsForm = ({
   isLoading,
   rememberedVspHost,
   toggleRememberVspHostCheckBox,
+  isPurchasingTicketsTrezor,
   notMixedAccounts
 }) => (
   <>
@@ -141,7 +142,7 @@ const PurchaseTicketsForm = ({
         buttonLabel={<T id="purchaseTickets.revokeBtn" m="Revoke" />}
       />
       {isWatchingOnly ? (
-        <KeyBlueButton disabled={!isValid} onClick={onV3PurchaseTicket}>
+        <KeyBlueButton disabled={!isValid || isPurchasingTicketsTrezor} loading={isPurchasingTicketsTrezor} onClick={onV3PurchaseTicket}>
           {purchaseLabel()}
         </KeyBlueButton>
       ) : isLoading ? (
