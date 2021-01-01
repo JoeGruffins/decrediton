@@ -36,6 +36,7 @@ export {
  ***************************************************/
 import {
   InfoModal,
+  QRModal,
   PassphraseModal,
   ChangePassphraseModal,
   ConfirmModal,
@@ -132,6 +133,11 @@ export const CloseWalletModalButton = mbb(
 export const CloseChannelModalButton = mbb(
   "go-back-icon-button",
   ConfirmModal,
+  InvisibleButton
+);
+export const QRModalButton = mbb(
+  null,
+  QRModal,
   InvisibleButton
 );
 export const InvisibleConfirmPoliteiaModalButton = mbb(

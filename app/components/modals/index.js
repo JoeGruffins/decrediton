@@ -2,6 +2,7 @@ export { default as ImportScriptModal } from "./ImportScriptModal/ImportScriptMo
 export { default as AddAccountModal } from "./AddAccountModal/AddAccountModal";
 export { default as ChangePassphraseModal } from "./ChangePassphraseModal/ChangePassphraseModal";
 export { default as InfoModal } from "./InfoModal";
+export { default as QRModal } from "./QRModal";
 export { default as InfoConfirmModal } from "./InfoConfirmModal";
 export { default as DocumentationInfoModal } from "./DocumentationInfoModal";
 export { default as PassphraseModal } from "./PassphraseModal/PassphraseModal";

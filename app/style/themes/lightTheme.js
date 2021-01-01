@@ -216,6 +216,8 @@ const lightTheme = {
   "sort-by-icon": "url('style/icons/sort-by.svg')",
   "contextbutton-eye-default-icon":
     "url('style/icons/contextbutton-eye-default.svg')",
+  "qrcode":
+    "url('style/icons/decred-qrcode.png')",
   "launcher-logo": "url('style/icons/launcher-logo.svg')",
   "help-getstared": "url('style/icons/help-active.png')",
   "no-tx-icon": "url('style/icons/no-tx.svg')",

@@ -57,6 +57,7 @@
 }
 
 .modal.info,
+.modal.qr,
 .modal.confirm,
 .reducedBar.confirm,
 .reducedBar.info,
@@ -76,6 +77,40 @@
   padding: 30px 40px 20px 58px;
   font-size: 13px;
   line-height: 17px;
+}
+
+.modal.qr {
+  height: 600px;
+  width: 500px;
+  z-index: 98;
+  margin-left: 150px;
+  padding: 30px 40px 30px 58px;
+}
+
+.qrPages ul{
+  position: absolute;
+  height: 40px;
+  display: inline-block;
+  align:left;
+  bottom: 0;
+  list-style-type: none;
+}
+
+.qrPages li{
+  display: inline-block;
+}
+
+.qrPages ul li a {
+ text-decoration:none;
+ padding:16px;
+}
+
+.qrPages ul li a:hover {
+  background-color: var(--transaction-account-name-bg);
+}
+
+.qrPages ul li a:focus {
+  outline: none;
 }
 
 .pseudo-modal.info {

@@ -218,6 +218,8 @@ const darkTheme = {
   "sort-by-icon": "url('style/icons/sortbyDark.svg')",
   "contextbutton-eye-default-icon":
     "url('style/icons/contextbuttonEyeDefaultDark.svg')",
+  "qrcode":
+    "url('style/icons/decred-qrcode.png')",
   "launcher-logo": "url('style/icons/launcherLogoDark.svg')",
   "help-getstared": "url('style/icons/helpGetstaredDark.svg')",
   "no-tx-icon": "url('style/icons/noTxDark.svg')",
