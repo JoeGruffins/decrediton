@@ -493,7 +493,7 @@ export const signTransactionAttemptTrezor = (
 
     dispatch({ type: SIGNTX_SUCCESS });
     dispatch(publishTransactionAttempt(hexToBytes(signedRaw)));
-    return true;
+    return signedRaw;
   } catch (error) {
     dispatch({ error, type: SIGNTX_FAILED });
   }
@@ -961,8 +961,8 @@ export const purchaseTicketsV3 = (
     for (let i = 0; i < decodedInp.outputs.length; i++) {
       changeIndexes.push(i);
     };
-    const success = await signTransactionAttemptTrezor(splitTx, changeIndexes)(dispatch, getState);
-    if (!success) throw("failed to sign splittx");
+    const signedSplitTx = await signTransactionAttemptTrezor(splitTx, changeIndexes)(dispatch, getState);
+    if (!signedSplitTx) throw("failed to sign splittx");
     const refTxs = await walletTxToRefTx(walletService, decodedInp);
 
     for (const ticket of res.getTicketsList()) {
@@ -1024,7 +1024,7 @@ export const purchaseTicketsV3 = (
       console.log("waiting 5 seconds for the ticket to propogate throughout the network");
       await new Promise(r => setTimeout(r, 5000));
       const host = "https://" + vsp.host;
-      await payVSPFee(host, signedRaw, votingKey, accountNum.value, true, dispatch, getState);
+      await payVSPFee(host, signedRaw, signedSplitTx, votingKey, accountNum.value, true, dispatch, getState);
     }
     dispatch({ type: TRZ_PURCHASETICKET_SUCCESS });
   } catch (error) {
@@ -1046,7 +1046,7 @@ function conToTrezCoinParams(coin) {
 // payVSPFee attempts to contact a vst about a ticket and pay the fee if
 // necessary. It will search transacitons for a suitable fee transaction before
 // attempting to pay if newTicket is false.
-async function payVSPFee(host, txHex, votingKey, accountNum, newTicket, dispatch, getState) {
+async function payVSPFee(host, txHex, parentTxHex, votingKey, accountNum, newTicket, dispatch, getState) {
   const {
     grpc: { walletService  }
   } = getState();
@@ -1064,7 +1064,8 @@ async function payVSPFee(host, txHex, votingKey, accountNum, newTicket, dispatch
   let req = {
     timestamp: + new Date(),
     tickethash: txHash,
-    tickethex: txHex
+    tickethex: txHex,
+    parenthex: parentTxHex
   };
   let jsonStr = JSON.stringify(req);
   let sig = await signMessageAttemptTrezor(commitmentAddr, jsonStr)(dispatch, getState);
